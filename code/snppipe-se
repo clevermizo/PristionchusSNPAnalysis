@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+if [[ $# -eq 0 ]] ; then
+    echo 'to execute, run'
+	echo -e '\t snppipe-se SampleName WorkingDirectory ConfigurationFile'
+    exit 0
+fi
+
+sample=$1
+wd=$2
+config=$3
+# Read from Configuration File
+gtffile=$(grep gtffile $config | cut -f2)
+genome=$(grep genome $config | cut -f2)
+readcroplen=$(grep readcroplen $config | cut -f2)
+seqtype=$(grep seqtype $config | cut -f2)
+
+if [ $seqtype = "SE" ]; then
+#SINGLE END MODE
+	# Find Reads
+ r1=$(ls "$wd/reads" | grep $sample | grep -m 1 "_R1")
+
+	# Quality Trim
+
+ java -jar $TRIM/trimmomatic-0.36.jar \
+	SE -phred33 "$wd/reads/$r1" \
+	"$wd/reads/trimmed_$r1" \
+	ILLUMINACLIP:"$TRIM/adapters/clipadapters.fa":2:55:10 \
+	LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 \
+	MINLEN:$readcroplen CROP:$readcroplen &> "$wd"/reads/"$sample".trimlog
+
+	# Align Reads to Genome (single end)
+	tr1="trimmed_$r1"
+
+ STAR  --runMode alignReads \
+      --limitBAMsortRAM 30000000000 \
+      --genomeDir $genome \
+      --readFilesIn $wd/reads/$tr1 \
+	  --readFilesCommand zcat \
+      --runThreadN 1 \
+      --genomeLoad NoSharedMemory \
+      --outReadsUnmapped Fastx \
+      --sjdbScore 0 \
+      --outSAMunmapped Within \
+      --outSAMtype BAM SortedByCoordinate \
+      --outFileNamePrefix $wd/bam/$sample"_"
+	  
+elif [ 	$seqtype = "PE" ]; then
+# PAIRED-END MODE 
+	# Find Reads
+ r1=$(ls "$wd/reads" | grep $sample | grep -m 1 "_R1")
+ r2=$(ls "$wd/reads" | grep $sample | grep -m 1 "_R2")
+	
+	# Quality Trim
+ java -jar $TRIM/trimmomatic-0.36.jar \
+	PE -phred33 "$wd/reads/$r1" "$wd/reads/$r2" \
+	"$wd/reads/trimmed_$r1" "$wd/reads/unpaired_$r1" \
+	"$wd/reads/trimmed_$r2" "$wd/reads/unpaired_$r2" \
+	ILLUMINACLIP:"$TRIM/adapters/clipadapters.fa":2:55:10 \
+	LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 \
+	MINLEN:$readcroplen CROP:$readcroplen &> "$wd"/reads/"$sample".trimlog
+
+# Align Reads to Genome (paired end)
+ tr1="trimmed_$r1"
+ tr2="trimmed_$r2"
+
+
+ STAR  --runMode alignReads \
+     --limitBAMsortRAM 30000000000 \
+     --genomeDir $genome \
+     --readFilesIn $wd/reads/$tr1 $wd/reads/$tr2 \
+	 --readFilesCommand zcat \
+     --runThreadN 1 \
+     --genomeLoad NoSharedMemory \
+     --outReadsUnmapped Fastx \
+     --sjdbScore 0 \
+     --outSAMunmapped Within \
+     --outSAMtype BAM SortedByCoordinate \
+     --outFileNamePrefix $wd/bam/$sample"_"
+fi

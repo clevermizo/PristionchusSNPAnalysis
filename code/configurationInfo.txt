@@ -1,0 +1,4 @@
+gtffile	/home/mrieger/data/Genomes/Annotation/pristionchus_pacificus.PRJNA12644.WBPS11.annotations.gtf
+genome	/home/mrieger/data/Genomes/STAR/P_pacificus-5.0
+readcroplen	30
+seqtype	SE
